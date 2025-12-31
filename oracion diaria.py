@@ -13,7 +13,7 @@ st.set_page_config(page_title="Meta 365", page_icon="🙏", layout="centered")
 URL_DATOS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRoKHTOJfvNGvNaTcXZh95b4fiach0dHTAbZ2wDTlbYLhwhgoF0eyscFVn91j-0RzQDkkUijgwXMZG1/pub?output=csv" 
 
 # 2. Pega aquí el enlace del Formulario de Google (El botón 'Enviar' -> Link corto)
-URL_FORMULARIO = "https://docs.google.com/forms/d/17w7SQjTCRUtrRMCtwWGtkawWlDjecPiB1ytzWFJ9njM/edit"
+URL_FORMULARIO = "https://docs.google.com/forms/d/e/1FAIpQLSdDAQ2_TDjnPtfRR8n26pd_YJ5Cjhd1_lCYQYcMWqPBoRypVw/viewform?usp=header"
 
 # ==============================================================================
 
@@ -77,4 +77,5 @@ else:
         
         # Solo mostramos la frase si existe
         if 'Frase' in df.columns and pd.notna(ultimo['Frase']) and str(ultimo['Frase']).strip() != "":
+
             st.info(f"✨ *\"{ultimo['Frase']}\"*")
