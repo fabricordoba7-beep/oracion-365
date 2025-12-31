@@ -1,18 +1,18 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+import altair as alt # Librería para gráficos lindos
 
-# --- CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(page_title="Meta 365", page_icon="🙏", layout="centered")
+# --- CONFIGURACIÓN ---
+st.set_page_config(page_title="Meta 365", page_icon="🙏", layout="wide")
 
 # ==============================================================================
-# 👇 ZONA DE EDICIÓN: PEGA TUS LINKS AQUÍ 👇
+# 👇 ZONA DE EDICIÓN: VUELVE A PEGAR TUS LINKS AQUÍ 👇
 # ==============================================================================
 
-# 1. Pega aquí el enlace que termina en ".csv" (El del Excel publicado)
-URL_DATOS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRoKHTOJfvNGvNaTcXZh95b4fiach0dHTAbZ2wDTlbYLhwhgoF0eyscFVn91j-0RzQDkkUijgwXMZG1/pub?output=csv" 
+# 1. Tu enlace CSV del Excel (Publicar en la web)
+URL_DATOS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRoKHTOJfvNGvNaTcXZh95b4fiach0dHTAbZ2wDTlbYLhwhgoF0eyscFVn91j-0RzQDkkUijgwXMZG1/pub?output=csv"
 
-# 2. Pega aquí el enlace del Formulario de Google (El botón 'Enviar' -> Link corto)
+# 2. Tu enlace del Formulario (Para el botón)
 URL_FORMULARIO = "https://docs.google.com/forms/d/e/1FAIpQLSdDAQ2_TDjnPtfRR8n26pd_YJ5Cjhd1_lCYQYcMWqPBoRypVw/viewform?usp=header"
 
 # ==============================================================================
@@ -20,62 +20,83 @@ URL_FORMULARIO = "https://docs.google.com/forms/d/e/1FAIpQLSdDAQ2_TDjnPtfRR8n26p
 def obtener_datos():
     try:
         df = pd.read_csv(URL_DATOS)
-        # Forzamos los nombres de columnas para que no fallen
-        # Orden esperado: Marca temporal, Participantes, Tema, Frase
+        # Limpieza y orden de columnas
         if len(df.columns) >= 3:
-            nuevas_columnas = ['FechaHora', 'Participantes', 'Tema']
-            # Si hay una 4ta columna (Frase), la agregamos
+            # Tomamos las primeras columnas y las renombramos
+            # Asumiendo orden: Marca temporal, Participantes, Tema, Frase...
+            cols = ['FechaHora', 'Participantes', 'Tema']
             if len(df.columns) >= 4:
-                nuevas_columnas.append('Frase')
-            # Completamos con el resto si sobran columnas
-            nuevas_columnas += [f"Col{i}" for i in range(len(nuevas_columnas), len(df.columns))]
+                cols.append('Frase')
             
-            df.columns = nuevas_columnas
+            # Ajustamos el dataframe a esas columnas
+            df = df.iloc[:, :len(cols)]
+            df.columns = cols
+            
+            # Convertir fecha
             df['Fecha'] = pd.to_datetime(df['FechaHora'], dayfirst=True, errors='coerce').dt.date
             return df
         return pd.DataFrame()
     except:
         return pd.DataFrame()
 
-# --- DISEÑO VISUAL ---
+# --- INTERFAZ ---
 
-st.title("🙏 Meta de Oración 365")
-st.write("Nuestro registro de avance espiritual.")
-
-# Botón grande para cargar
-st.link_button("📝 REGISTRAR EL DÍA DE HOY", URL_FORMULARIO, type="primary", use_container_width=True)
-
+st.title("🙏 Desafío de Oración: Meta 365")
 st.markdown("---")
 
 df = obtener_datos()
 
 if df.empty:
-    st.info("⏳ Esperando el primer registro... ¡Estrena la app cargando el día de hoy!")
+    st.info("Esperando datos... Carga el primer día con el botón de abajo.")
 else:
-    # --- 1. BARRA DE PROGRESO ---
-    dias_distintos = df['Fecha'].nunique()
+    # CÁLCULOS
+    dias_orados = df['Fecha'].nunique()
     meta = 365
-    progreso = min(dias_distintos / meta, 1.0) # Para que no pase del 100%
+    falta = meta - dias_orados
+    porcentaje = (dias_orados / meta) * 100
     
-    st.subheader(f"🚀 Avance: Día {dias_distintos} de {meta}")
-    st.progress(progreso)
-    st.caption(f"Nos faltan {meta - dias_distintos} días para cumplir el año.")
+    # --- ZONA DE GRÁFICOS (Columnas) ---
+    col1, col2 = st.columns([1, 2]) # Columna 1 más chica, Columna 2 más grande
+
+    with col1:
+        st.subheader("🎯 Meta Anual")
+        # Gráfico de DONA (Donut Chart) para el porcentaje
+        datos_grafico = pd.DataFrame({
+            'Estado': ['Días Orados', 'Días Restantes'],
+            'Valor': [dias_orados, falta]
+        })
+        
+        grafico_dona = alt.Chart(datos_grafico).mark_arc(innerRadius=50).encode(
+            theta=alt.Theta(field="Valor", type="quantitative"),
+            color=alt.Color(field="Estado", type="nominal", 
+                          scale=alt.Scale(domain=['Días Orados', 'Días Restantes'],
+                                        range=['#4CAF50', '#e0e0e0'])), # Verde y Gris
+            tooltip=['Estado', 'Valor']
+        )
+        st.altair_chart(grafico_dona, use_container_width=True)
+        
+        # Métrica grande abajo del gráfico
+        st.metric("Progreso", f"{porcentaje:.1f}%", f"{dias_orados} días cumplidos")
+
+    with col2:
+        st.subheader("📊 Historial de Constancia")
+        # Gráfico de BARRAS por fecha
+        conteo_diario = df['Fecha'].value_counts().reset_index()
+        conteo_diario.columns = ['Fecha', 'Asistencia']
+        conteo_diario = conteo_diario.sort_values('Fecha')
+        
+        st.bar_chart(conteo_diario, x='Fecha', y='Asistencia', color="#4CAF50")
+        
+        # Tarjeta con el último tema
+        ultimo = df.iloc[-1]
+        st.info(f"**Último Tema ({ultimo['Fecha']}):** {ultimo['Tema']}")
 
     st.markdown("---")
-
-    # --- 2. EL ÚLTIMO REGISTRO (LO DE HOY) ---
-    st.subheader("📖 Última Reunión")
     
-    # Tomamos el último dato ingresado
-    ultimo = df.iloc[-1]
-    
-    # Mostramos los datos lindos
-    with st.container(border=True):
-        st.write(f"**📅 Fecha:** {ultimo['Fecha']}")
-        st.write(f"**👥 Participantes:** {ultimo['Participantes']}")
-        st.write(f"**🗣️ Tema:** {ultimo['Tema']}")
-        
-        # Solo mostramos la frase si existe
-        if 'Frase' in df.columns and pd.notna(ultimo['Frase']) and str(ultimo['Frase']).strip() != "":
+    # TABLA COMPLETA
+    with st.expander("📜 Ver lista completa de oraciones"):
+        st.dataframe(df[['Fecha', 'Participantes', 'Tema']], use_container_width=True)
 
-            st.info(f"✨ *\"{ultimo['Frase']}\"*")
+# BOTÓN FLOTANTE FINAL
+st.markdown("<br>", unsafe_allow_html=True)
+st.link_button("📝 CARGAR DÍA DE HOY", URL_FORMULARIO, type="primary", use_container_width=True)
